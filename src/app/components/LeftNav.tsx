@@ -80,7 +80,7 @@ export function LeftNav() {
 
   const logoAndToggle = (
     <div className="flex items-center justify-between px-1 mb-2">
-      <img src="/netskope-logo.png" alt="Netskope" className="h-7 w-auto group-data-[collapsible=icon]:h-6" />
+      <img src={`${import.meta.env.BASE_URL}netskope-logo.png`} alt="Netskope" className="h-7 w-auto group-data-[collapsible=icon]:h-6" />
       <div className="group-data-[collapsible=icon]:hidden">
         <CollapseToggle />
       </div>
