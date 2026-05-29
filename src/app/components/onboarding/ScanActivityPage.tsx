@@ -4,12 +4,12 @@
 // Settings (edit credentials, scan frequency, capabilities — reuses the wizard
 // shape inline).
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import {
   Clock, RefreshCw, Check, AlertTriangle, Archive, X, Edit,
   ExternalLink, Search, Filter, ChevronDown, Database,
   ArrowRight, ArrowLeft, Activity, Info, Sparkles, Settings2,
-  Save,
+  Save, Link2, Sliders, FileSearch,
 } from "lucide-react";
 import type { ConnectedStore, StepStatus } from "./types";
 import { InfoTip } from "./InfoTip";
@@ -46,6 +46,7 @@ interface ScanError {
 
 interface ScanStore {
   id: string;
+  name: string;
   service: string;
   account: string;
   endpoint: string;
@@ -87,6 +88,7 @@ interface ScanActivityPageProps {
 const SCAN_SEED_STORES: ScanStore[] = [
   {
     id: "sa-1",
+    name: "Analytics Warehouse",
     service: "Redshift",
     account: "production-main",
     endpoint: "analytics.cluster-abc.us-west-2.redshift.amazonaws.com:5439/dev",
@@ -124,6 +126,7 @@ const SCAN_SEED_STORES: ScanStore[] = [
   },
   {
     id: "sa-2",
+    name: "Customer Events Bucket",
     service: "S3",
     account: "production-main",
     endpoint: "acme-customer-events",
@@ -155,6 +158,7 @@ const SCAN_SEED_STORES: ScanStore[] = [
   },
   {
     id: "sa-3",
+    name: "Staging App DB",
     service: "PostgreSQL",
     account: "AWS Staging",
     endpoint: "staging-pg.cluster-xyz.us-east-1.rds.amazonaws.com:5432/app",
@@ -324,41 +328,25 @@ function ToggleSwitch({ on }: ToggleSwitchProps) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  StatTile                                                          */
-/* ------------------------------------------------------------------ */
-
-interface StatTileProps {
-  label: string;
-  value: number | string;
-  color: string;
-  sub?: string;
-  tooltip?: ReactNode;
-}
-
-function StatTile({ label, value, color, sub, tooltip }: StatTileProps) {
-  const display = fmtNum(value);
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-black/[0.06] dark:border-white/10 rounded-lg px-3.5 py-2.5">
-      <div className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase inline-flex items-center">
-        {label}
-        {tooltip && <InfoTip label={label}>{tooltip}</InfoTip>}
-      </div>
-      <div className="tabular-nums text-xl font-bold mt-1 leading-none" style={{ color }}>
-        {display}
-      </div>
-      {sub && <div className="text-[11px] text-slate-400 mt-1">{sub}</div>}
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  StoreDetailsDrawer                                                */
 /* ------------------------------------------------------------------ */
 
+type DrawerTab = "scan-details" | "activity" | "change-log" | "connection" | "capabilities";
+
+const DRAWER_TABS: { id: DrawerTab; label: string; icon: typeof FileSearch }[] = [
+  { id: "scan-details", label: "Scan details", icon: FileSearch },
+  { id: "activity", label: "Activity log", icon: Activity },
+  { id: "change-log", label: "Change log", icon: Clock },
+  { id: "connection", label: "Connection", icon: Link2 },
+  { id: "capabilities", label: "Capabilities", icon: Sliders },
+];
+
 interface StoreDetailsDrawerProps {
   open: boolean;
   store: ScanStore | undefined;
+  initialTab?: DrawerTab;
   onClose: () => void;
   onArchive?: (store: ScanStore) => void;
   onUpdate?: (settings: {
@@ -372,9 +360,8 @@ interface StoreDetailsDrawerProps {
   onViewInventory?: (store: ScanStore) => void;
 }
 
-function StoreDetailsDrawer({ open, store, onClose, onArchive, onUpdate, onViewInventory }: StoreDetailsDrawerProps) {
-  const [tab, setTab] = useState("scan-details");
-  const [editing, setEditing] = useState(false);
+function StoreDetailsDrawer({ open, store, initialTab, onClose, onArchive, onUpdate, onViewInventory }: StoreDetailsDrawerProps) {
+  const [tab, setTab] = useState<DrawerTab>("scan-details");
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [scanType, setScanType] = useState(store?.scanType || "smart");
   const [scanFreq, setScanFreq] = useState("Daily (Recommended)");
@@ -385,269 +372,285 @@ function StoreDetailsDrawer({ open, store, onClose, onArchive, onUpdate, onViewI
 
   useEffect(() => {
     if (open) {
-      setTab("scan-details");
-      setEditing(false);
+      setTab(initialTab || "scan-details");
       setScanType(store?.scanType || "smart");
     }
-  }, [open, store?.id]);
+  }, [open, store?.id, initialTab]);
 
   if (!open || !store) return null;
 
-  const drawerTabs = [
-    { id: "scan-details", label: "Scan details" },
-    { id: "activity", label: "Activity log" },
-    { id: "change-log", label: "Change log" },
-  ];
+  const isEditable = tab === "connection" || tab === "capabilities";
 
   return (
     <>
       {/* Scrim */}
-      <div className="fixed inset-0 z-50 bg-black/30 dark:bg-black/50" onClick={onClose} />
+      <div
+        className="fixed inset-0"
+        style={{ zIndex: 50, background: "rgba(0,0,0,0.25)" }}
+        onClick={onClose}
+      />
 
-      {/* Drawer panel */}
-      <div className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-[520px] bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-slide-in-right">
+      {/* Drawer panel — inventory SidePanel style */}
+      <div
+        className="fixed top-0 right-0 bottom-0 flex flex-col border-l border-slate-200 dark:border-slate-700"
+        style={{
+          zIndex: 55,
+          width: "min(680px, 90vw)",
+          background: "var(--color-background, #fff)",
+          boxShadow: "-4px 0 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)",
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 220ms cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <ServiceGlyph name={store.service} size={20} />
-            <div className="min-w-0">
-              <div className="text-[11px] text-slate-400 font-semibold tracking-wider uppercase">
-                {store.account} &middot; {store.region}
+        <div className="shrink-0 px-5 pt-5 pb-3 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <ServiceGlyph name={store.service} size={20} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 truncate min-w-0 m-0">
+                    {store.name || store.endpoint}
+                  </h3>
+                  <StateChip state={store.scanState} />
+                </div>
+                <div className="text-[12px] text-slate-400 mt-0.5">
+                  {store.service} &middot; {store.account} &middot; {store.region}
+                </div>
               </div>
-              <h3 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 mt-0.5 leading-tight truncate">
-                {store.endpoint}
-              </h3>
             </div>
-          </div>
-          <StateChip state={store.scanState} />
-          {!editing && (
             <button
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer ml-1.5"
-              onClick={() => setEditing(true)}
+              className="shrink-0 p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-transparent border-none cursor-pointer"
+              onClick={onClose}
+              aria-label="Close panel"
             >
-              <Edit size={12} /> Edit settings
+              <X size={16} />
             </button>
-          )}
-          <button
-            className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent border-none text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
+          </div>
         </div>
 
-        {/* Tabs (hidden when editing) */}
-        {!editing && (
-          <div className="flex gap-4 px-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-            {drawerTabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`bg-transparent border-none py-2.5 px-0.5 text-[13px] cursor-pointer relative top-px whitespace-nowrap transition-colors ${
-                  tab === t.id
-                    ? "font-semibold text-slate-900 dark:text-slate-100 border-b-2 border-blue-500"
-                    : "font-medium text-slate-500 dark:text-slate-400 border-b-2 border-transparent"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+        {/* Body — vertical tab bar left + content right */}
+        <div className="flex flex-row flex-1 min-h-0">
+          {/* Left tab bar */}
+          <div className="shrink-0 flex flex-col gap-0 py-2 border-r border-slate-200 dark:border-slate-700 min-w-[160px]">
+            {DRAWER_TABS.map((t) => {
+              const isActive = tab === t.id;
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={`relative flex items-center gap-2 px-4 py-2.5 w-full transition-colors bg-transparent border-none cursor-pointer text-left ${
+                    isActive
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                  }`}
+                  style={{ fontSize: "12px", fontWeight: isActive ? 600 : 400 }}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-blue-500 rounded-full" />
+                  )}
+                  <Icon size={13} className="shrink-0" />
+                  <span className="whitespace-nowrap">{t.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-          {/* ========== SCAN DETAILS TAB ========== */}
-          {!editing && tab === "scan-details" && (
-            <>
-              {/* Error block */}
-              {store.error && (
-                <div className="flex gap-3 p-4 rounded-lg border border-red-200/60 dark:border-red-500/20 bg-red-50/50 dark:bg-red-900/10">
-                  <AlertTriangle size={14} className="text-red-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                      {store.error.title}
-                      <code className="text-[10.5px] bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded font-mono">
-                        {store.error.code}
-                      </code>
-                    </div>
-                    <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                      {store.error.detail}
-                    </div>
-                    <div className="flex gap-2 mt-2.5 flex-wrap">
-                      {store.error.remediations.map((r, i) => (
-                        <a
-                          key={i}
-                          href={r.href}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer no-underline"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <ExternalLink size={12} /> {r.label}
-                        </a>
-                      ))}
+          {/* Right content area */}
+          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 min-w-0">
+
+            {/* ═══ SCAN DETAILS ═══ */}
+            {tab === "scan-details" && (
+              <>
+                {store.error && (
+                  <div className="flex gap-3 p-4 rounded-lg border border-red-200/60 dark:border-red-500/20 bg-red-50/50 dark:bg-red-900/10">
+                    <AlertTriangle size={14} className="text-red-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                        {store.error.title}
+                        <code className="text-[10.5px] bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded font-mono">
+                          {store.error.code}
+                        </code>
+                      </div>
+                      <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        {store.error.detail}
+                      </div>
+                      <div className="flex gap-2 mt-2.5 flex-wrap">
+                        {store.error.remediations.map((r, i) => (
+                          <a
+                            key={i}
+                            href={r.href}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer no-underline"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <ExternalLink size={12} /> {r.label}
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Progress + file-count block */}
-              {!store.error &&
-                (() => {
-                  const sampled =
-                    store.sampledFiles && typeof store.sampledFiles === "number"
-                      ? store.sampledFiles
-                      : store.filesTotal;
-                  const pct = sampled
-                    ? Math.min(100, Math.round((store.filesScanned / sampled) * 100))
-                    : store.progress || 0;
-                  const remaining = Math.max(0, sampled - store.filesScanned);
+                {!store.error &&
+                  (() => {
+                    const sampled =
+                      store.sampledFiles && typeof store.sampledFiles === "number"
+                        ? store.sampledFiles
+                        : store.filesTotal;
+                    const pct = sampled
+                      ? Math.min(100, Math.round((store.filesScanned / sampled) * 100))
+                      : store.progress || 0;
+                    const remaining = Math.max(0, sampled - store.filesScanned);
+                    return (
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3.5">
+                        <div className="flex justify-between items-baseline">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            {store.scanState === "completed" ? "Last scan" : "Current scan"}
+                          </div>
+                          <div className="text-[11.5px] text-slate-500">
+                            {store.scanType === "smart" ? "Smart Discovery scan" : "Deep scan"} &middot; daily
+                          </div>
+                        </div>
+                        <div className="mt-2.5">
+                          <MiniProgress
+                            value={pct}
+                            color={store.scanState === "completed" ? "#16a34a" : "#3b82f6"}
+                          />
+                        </div>
+                        <div className="tabular-nums mt-2 flex justify-between text-[12px] text-slate-500 dark:text-slate-400">
+                          <span>
+                            <strong className="text-slate-900 dark:text-slate-100">
+                              {fmtNum(store.filesScanned)}
+                            </strong>{" "}
+                            scanned
+                            <span className="text-slate-400"> &middot; {fmtNum(remaining)} remaining</span>
+                          </span>
+                          <span className="text-slate-400">
+                            of {fmtNum(sampled)} files
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-1.5 pt-2 border-t border-black/5 dark:border-white/5 flex justify-between">
+                          <span>
+                            {store.sizeScanned} of {store.sizeTotal}
+                          </span>
+                          <span>Next scan {store.nextScan}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                {/* Scan breakdown */}
+                {!store.error && (() => {
+                  const total = typeof store.filesTotal === "number" ? store.filesTotal : 0;
+                  const classifiable = typeof store.classifiableFiles === "number" ? store.classifiableFiles : 0;
+                  const sampled = typeof store.sampledFiles === "number" ? store.sampledFiles : 0;
+                  const sensitive = typeof store.sensitiveFiles === "number" ? store.sensitiveFiles : 0;
+                  if (!total) return null;
+                  const pctOf = (n: number) => Math.round((n / total) * 100);
+                  const segments = [
+                    { label: "Sensitive", count: sensitive, color: "#dc2626", pct: pctOf(sensitive) },
+                    { label: "Sampled", count: sampled - sensitive, color: "#3b82f6", pct: pctOf(sampled - sensitive) },
+                    { label: "Classifiable", count: classifiable - sampled, color: "#93c5fd", pct: pctOf(classifiable - sampled) },
+                    { label: "Not classifiable", count: total - classifiable, color: "#e2e8f0", pct: pctOf(total - classifiable) },
+                  ];
                   return (
                     <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3.5">
-                      <div className="flex justify-between items-baseline">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                          {store.scanState === "completed" ? "Last scan" : "Current scan"}
+                      <div className="flex items-center justify-between mb-2.5">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                          Scan breakdown
+                          <InfoTip label="Scan breakdown">
+                            Shows how the total file population breaks down: sensitive (PII/secrets found),
+                            sampled (queued for DLP scan), classifiable (eligible for scanning), and
+                            not classifiable (skipped due to size, type, or access).
+                          </InfoTip>
                         </div>
-                        <div className="text-[11.5px] text-slate-500">
-                          {store.scanType === "smart" ? "Smart Discovery scan" : "Deep scan"} &middot; daily
-                        </div>
-                      </div>
-                      <div className="mt-2.5">
-                        <MiniProgress
-                          value={pct}
-                          color={store.scanState === "completed" ? "#16a34a" : "#3b82f6"}
-                        />
-                      </div>
-                      <div className="tabular-nums mt-2 flex justify-between text-[12px] text-slate-500 dark:text-slate-400">
-                        <span>
-                          <strong className="text-slate-900 dark:text-slate-100">
-                            {fmtNum(store.filesScanned)}
-                          </strong>{" "}
-                          scanned
-                          <span className="text-slate-400"> &middot; {fmtNum(remaining)} remaining</span>
-                        </span>
-                        <span className="text-slate-400">
-                          of {fmtNum(sampled)} files queued for DLP content scan
+                        <span className="tabular-nums text-[11px] text-slate-400">
+                          {fmtNum(total)} total files
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-1.5 pt-2 border-t border-black/5 dark:border-white/5 flex justify-between">
-                        <span>
-                          {store.sizeScanned} of {store.sizeTotal}
-                        </span>
-                        <span>Next scan {store.nextScan}</span>
+                      <div className="h-2.5 bg-black/[0.06] dark:bg-white/10 rounded-full overflow-hidden flex">
+                        {segments.map((seg) => seg.pct > 0 && (
+                          <div
+                            key={seg.label}
+                            className="h-full first:rounded-l-full last:rounded-r-full transition-[width] duration-500 ease-out"
+                            style={{ width: `${seg.pct}%`, background: seg.color }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
+                        {[
+                          { label: "Sensitive", count: sensitive, color: "#dc2626" },
+                          { label: "Sampled", count: sampled, color: "#3b82f6" },
+                          { label: "Classifiable", count: classifiable, color: "#93c5fd" },
+                          { label: "Not classifiable", count: total - classifiable, color: "#e2e8f0" },
+                        ].map((seg) => (
+                          <span key={seg.label} className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: seg.color }} />
+                            {seg.label}
+                            <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200">
+                              {fmtNum(seg.count)}
+                            </span>
+                          </span>
+                        ))}
                       </div>
                     </div>
                   );
                 })()}
 
-              {/* Scan breakdown */}
-              {!store.error && (
-                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-3">
-                    Scan breakdown
-                  </div>
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <StatTile
-                      label="Sampled for DLP scan"
-                      value={store.sampledFiles}
-                      color="#3b82f6"
-                      sub={
-                        store.scanType === "smart"
-                          ? "Files queued for content classification"
-                          : "Full content scan target"
-                      }
-                      tooltip={
-                        <>
-                          <strong>Sampled files</strong> are the subset selected for content
-                          classification by the DLP engine. For Smart scans, AI picks a representative
-                          subset; for Deep scans, it covers the full classifiable set. Progress is
-                          measured against this number.
-                        </>
-                      }
-                    />
-                    <StatTile
-                      label="Sensitive files found"
-                      value={store.sensitiveFiles}
-                      color="#dc2626"
-                      sub="Classified as containing sensitive data"
-                    />
-                  </div>
-                  {/* Secondary context */}
-                  <div className="mt-3.5 pt-3 border-t border-black/5 dark:border-white/5 flex gap-6 text-[11.5px] text-slate-400">
-                    <span>
-                      <span className="tabular-nums text-slate-500 dark:text-slate-300 font-medium">
-                        {fmtNum(store.classifiableFiles)}
-                      </span>{" "}
-                      classifiable
-                    </span>
-                    <span>
-                      <span className="tabular-nums text-slate-500 dark:text-slate-300 font-medium">
-                        {fmtNum(store.filesTotal)}
-                      </span>{" "}
-                      Total
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Not classifiable reasons */}
-              {!store.error && store.notClassifiable && store.notClassifiable.length > 0 && (
-                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2.5 flex items-center gap-2">
-                    <AlertTriangle size={11} className="text-orange-500" />
-                    Not classifiable
-                    <span className="text-slate-400 font-medium ml-auto">
-                      {fmtNum(store.notClassifiable.reduce((s, r) => s + r.count, 0))} total
-                    </span>
-                  </div>
-                  <ul className="list-none p-0 m-0 flex flex-col gap-2">
-                    {store.notClassifiable.map((r, i) => (
-                      <li key={i} className="flex items-center gap-2.5 text-[12.5px]">
-                        <span className="tabular-nums min-w-[62px] px-2 py-0.5 rounded bg-orange-500/[0.08] text-orange-500 text-[11.5px] font-semibold text-right">
-                          {fmtNum(r.count)}
-                        </span>
-                        <span className="text-slate-800 dark:text-slate-200">{r.reason}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* View in Inventory CTA */}
-              {!store.error && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onViewInventory && onViewInventory(store);
-                    onClose();
-                  }}
-                  className="w-full p-3.5 cursor-pointer rounded-lg border border-blue-500/30 bg-blue-500/[0.04] dark:bg-blue-500/10 flex items-center gap-3 text-left font-inherit"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/[0.12] text-blue-500 flex items-center justify-center shrink-0">
-                    <Database size={16} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                      View scan results in Inventory
+                {/* Not classifiable reasons */}
+                {!store.error && store.notClassifiable && store.notClassifiable.length > 0 && (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 p-3.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2.5 flex items-center gap-2">
+                      <AlertTriangle size={11} className="text-orange-500" />
+                      Not classifiable
+                      <span className="text-slate-400 font-medium ml-auto">
+                        {fmtNum(store.notClassifiable.reduce((s, r) => s + r.count, 0))} total
+                      </span>
                     </div>
-                    <div className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Browse sensitive data types, classifications, and entities discovered in this
-                      store.
-                    </div>
+                    <ul className="list-none p-0 m-0 flex flex-col gap-2">
+                      {store.notClassifiable.map((r, i) => (
+                        <li key={i} className="flex items-center gap-2.5 text-[12.5px]">
+                          <span className="tabular-nums min-w-[62px] px-2 py-0.5 rounded bg-orange-500/[0.08] text-orange-500 text-[11.5px] font-semibold text-right">
+                            {fmtNum(r.count)}
+                          </span>
+                          <span className="text-slate-800 dark:text-slate-200">{r.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ArrowRight size={14} className="text-blue-500 shrink-0" />
-                </button>
-              )}
-            </>
-          )}
+                )}
 
-          {/* ========== ACTIVITY TAB ========== */}
-          {!editing && tab === "activity" && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 my-1 mb-2.5">
-                Scan activity
-              </div>
+                {/* View in Inventory */}
+                {!store.error && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onViewInventory && onViewInventory(store);
+                      onClose();
+                    }}
+                    className="w-full p-3.5 cursor-pointer rounded-lg border border-blue-500/30 bg-blue-500/[0.04] dark:bg-blue-500/10 flex items-center gap-3 text-left font-inherit"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/[0.12] text-blue-500 flex items-center justify-center shrink-0">
+                      <Database size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                        View in Managed Data Store Inventory
+                      </div>
+                      <div className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Browse sensitive data types, classifications, and entities.
+                      </div>
+                    </div>
+                    <ArrowRight size={14} className="text-blue-500 shrink-0" />
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* ═══ ACTIVITY LOG ═══ */}
+            {tab === "activity" && (
               <ol className="list-none p-0 m-0 flex flex-col gap-2">
                 {(store.history || []).map((h, i) => (
                   <li
@@ -658,18 +661,10 @@ function StoreDetailsDrawer({ open, store, onClose, onArchive, onUpdate, onViewI
                     <span className="text-slate-400">{h.ts}</span>
                     <span className="inline-flex w-4 h-4 items-center justify-center">
                       {h.type === "ok" && <Check size={11} className="text-green-600" />}
-                      {h.type === "info" && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      )}
-                      {h.type === "warn" && (
-                        <AlertTriangle size={11} className="text-orange-500" />
-                      )}
-                      {h.type === "error" && (
-                        <AlertTriangle size={11} className="text-red-600" />
-                      )}
-                      {h.type === "progress" && (
-                        <Activity size={11} className="text-blue-500" />
-                      )}
+                      {h.type === "info" && <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                      {h.type === "warn" && <AlertTriangle size={11} className="text-orange-500" />}
+                      {h.type === "error" && <AlertTriangle size={11} className="text-red-600" />}
+                      {h.type === "progress" && <Activity size={11} className="text-blue-500" />}
                     </span>
                     <span className="text-slate-800 dark:text-slate-200">{h.msg}</span>
                   </li>
@@ -678,272 +673,219 @@ function StoreDetailsDrawer({ open, store, onClose, onArchive, onUpdate, onViewI
                   <li className="text-[12px] text-slate-400 py-3">No scan activity recorded yet.</li>
                 )}
               </ol>
-            </div>
-          )}
+            )}
 
-          {/* ========== CHANGE LOG TAB ========== */}
-          {!editing && tab === "change-log" && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 my-1 mb-2.5">
-                Configuration changes
-              </div>
-              {(!store.changeLog || store.changeLog.length === 0) ? (
-                <div className="text-[12px] text-slate-400 py-3">No configuration changes yet.</div>
-              ) : (
-                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
-                  <div
-                    className="grid px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800"
-                    style={{ gridTemplateColumns: "1.2fr 1.4fr 1fr 1.4fr" }}
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      When
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      Field
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      From
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      To
-                    </span>
-                  </div>
-                  {store.changeLog.map((c, i) => (
+            {/* ═══ CHANGE LOG ═══ */}
+            {tab === "change-log" && (
+              <>
+                {(!store.changeLog || store.changeLog.length === 0) ? (
+                  <div className="text-[12px] text-slate-400 py-3">No configuration changes yet.</div>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
                     <div
-                      key={i}
-                      className="grid px-3.5 py-2.5 items-start border-b border-slate-100 dark:border-slate-800 last:border-b-0"
+                      className="grid px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800"
                       style={{ gridTemplateColumns: "1.2fr 1.4fr 1fr 1.4fr" }}
                     >
-                      <span className="text-[11.5px] text-slate-500 dark:text-slate-400">
-                        <div>{c.ts}</div>
-                        <div className="text-slate-400 text-[11px]">{c.by}</div>
-                      </span>
-                      <span className="text-[12px] text-slate-900 dark:text-slate-100 font-medium">
-                        {c.field}
-                      </span>
-                      <span className="text-[12px] text-slate-400">{c.from}</span>
-                      <span className="text-[12px] text-slate-800 dark:text-slate-200 font-medium">
-                        {c.to}
-                      </span>
+                      {["When", "Field", "From", "To"].map((h) => (
+                        <span key={h} className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{h}</span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ========== EDITING MODE ========== */}
-          {editing && (
-            <>
-              {/* Info callout */}
-              <div className="flex gap-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                <Info size={14} className="text-slate-500 shrink-0 mt-0.5" />
-                <div className="text-[12px] text-slate-500 dark:text-slate-400">
-                  Changes take effect from the next scan. A change-log entry is created when you save.
-                </div>
-              </div>
-
-              {/* Scan type */}
-              <div className="flex flex-col gap-2">
-                <div>
-                  <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                    Scan type
+                    {store.changeLog.map((c, i) => (
+                      <div
+                        key={i}
+                        className="grid px-3.5 py-2.5 items-start border-b border-slate-100 dark:border-slate-800 last:border-b-0"
+                        style={{ gridTemplateColumns: "1.2fr 1.4fr 1fr 1.4fr" }}
+                      >
+                        <span className="text-[11.5px] text-slate-500 dark:text-slate-400">
+                          <div>{c.ts}</div>
+                          <div className="text-slate-400 text-[11px]">{c.by}</div>
+                        </span>
+                        <span className="text-[12px] text-slate-900 dark:text-slate-100 font-medium">{c.field}</span>
+                        <span className="text-[12px] text-slate-400">{c.from}</span>
+                        <span className="text-[12px] text-slate-800 dark:text-slate-200 font-medium">{c.to}</span>
+                      </div>
+                    ))}
                   </div>
+                )}
+              </>
+            )}
+
+            {/* ═══ CONNECTION & CREDENTIALS ═══ */}
+            {tab === "connection" && (
+              <>
+                <div className="flex gap-3 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                  <Info size={14} className="text-slate-500 shrink-0 mt-0.5" />
                   <div className="text-[12px] text-slate-500 dark:text-slate-400">
-                    Smart for AI-driven sampling, Deep for full content classification.
+                    Changes take effect from the next scan. A change-log entry is created when you save.
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setScanType("smart")}
-                    className={`flex items-center gap-3 p-3 rounded-lg border text-left cursor-pointer transition-colors ${
-                      scanType === "smart"
-                        ? "border-blue-500 bg-blue-500/[0.06] dark:bg-blue-500/10"
-                        : "border-slate-200 dark:border-slate-700 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <Sparkles size={14} className={scanType === "smart" ? "text-blue-500" : "text-slate-400"} />
-                    <div className="text-left">
-                      <div className={`text-[12px] font-semibold ${scanType === "smart" ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
-                        Smart scan
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Endpoint
+                  </span>
+                  <input
+                    className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    defaultValue={store.endpoint}
+                    readOnly
+                  />
+                </label>
+
+                <div className="flex gap-3">
+                  <label className="flex flex-col gap-1.5 flex-1">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Account</span>
+                    <input className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40" defaultValue={store.account} readOnly />
+                  </label>
+                  <label className="flex flex-col gap-1.5 flex-1">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Region</span>
+                    <input className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40" defaultValue={store.region} readOnly />
+                  </label>
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-3">Authentication</div>
+                  <div className="flex gap-3">
+                    <label className="flex flex-col gap-1.5 flex-1">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Auth method</span>
+                      <select className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                        <option>IAM Role (Recommended)</option>
+                        <option>Access Key + Secret</option>
+                        <option>Username &amp; Password</option>
+                        <option>Service Account JSON</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5 flex-1">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Credential</span>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 h-[38px]">
+                        <span className="text-[13px] text-slate-400 tracking-[0.15em]">••••••••••••</span>
+                        <button type="button" className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-blue-500 bg-blue-500/[0.08] hover:bg-blue-500/[0.14] border-none cursor-pointer">
+                          <Edit size={10} /> Update
+                        </button>
                       </div>
-                      <div className="text-[11px] text-slate-400">AI-driven sampling</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScanType("deep")}
-                    className={`flex items-center gap-3 p-3 rounded-lg border text-left cursor-pointer transition-colors ${
-                      scanType === "deep"
-                        ? "border-blue-500 bg-blue-500/[0.06] dark:bg-blue-500/10"
-                        : "border-slate-200 dark:border-slate-700 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <Settings2 size={14} className={scanType === "deep" ? "text-blue-500" : "text-slate-400"} />
-                    <div className="text-left">
-                      <div className={`text-[12px] font-semibold ${scanType === "deep" ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
-                        Deep scan
-                      </div>
-                      <div className="text-[11px] text-slate-400">Targeted, full content</div>
-                    </div>
+                    </label>
+                  </div>
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-2.5">
+                    <Check size={10} className="text-green-500" /> Last credential test passed 2h ago
+                  </div>
+                  <button type="button" className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-blue-600 dark:text-blue-400 bg-blue-500/[0.08] hover:bg-blue-500/[0.14] border-none cursor-pointer">
+                    <RefreshCw size={12} /> Test connection
                   </button>
                 </div>
-              </div>
 
-              {/* Frequency + Scanner pool */}
-              <div className="flex gap-3">
-                <label className="flex flex-col gap-1.5 flex-1">
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Scan frequency
-                  </span>
-                  <select
-                    className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                    value={scanFreq}
-                    onChange={(e) => setScanFreq(e.target.value)}
-                  >
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Scanner pool</span>
+                    <select className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40" value={scannerPool} onChange={(e) => setScannerPool(e.target.value)}>
+                      <option value="">Tenant cloud</option>
+                      <option value="pool-eu-west">EU West Production</option>
+                      <option value="pool-a">Standalone Pool A</option>
+                    </select>
+                  </label>
+                </div>
+
+                {/* Archive */}
+                <div className="mt-auto flex gap-3 p-4 rounded-lg border border-red-200/50 dark:border-red-500/20 bg-red-50/30 dark:bg-red-900/10">
+                  <AlertTriangle size={14} className="text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Archive this connection</div>
+                    <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1">
+                      Stops scans and removes from Scan Activity. Reactivate from Archived.
+                    </div>
+                  </div>
+                  <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0 self-center" onClick={() => setConfirmArchive(true)}>
+                    <Archive size={12} /> Archive
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ═══ CAPABILITIES ═══ */}
+            {tab === "capabilities" && (
+              <>
+                {/* Scan type */}
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Scan type</div>
+                    <div className="text-[12px] text-slate-500 dark:text-slate-400">Smart for AI-driven sampling, Deep for full content classification.</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {(["smart", "deep"] as const).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setScanType(st)}
+                        className={`flex items-center gap-3 p-3 rounded-lg border text-left cursor-pointer transition-colors ${
+                          scanType === st
+                            ? "border-blue-500 bg-blue-500/[0.06] dark:bg-blue-500/10"
+                            : "border-slate-200 dark:border-slate-700 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {st === "smart" ? <Sparkles size={14} className={scanType === st ? "text-blue-500" : "text-slate-400"} /> : <Settings2 size={14} className={scanType === st ? "text-blue-500" : "text-slate-400"} />}
+                        <div className="text-left">
+                          <div className={`text-[12px] font-semibold ${scanType === st ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
+                            {st === "smart" ? "Smart scan" : "Deep scan"}
+                          </div>
+                          <div className="text-[11px] text-slate-400">{st === "smart" ? "AI-driven sampling" : "Targeted, full content"}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Frequency */}
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Scan frequency</span>
+                  <select className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40" value={scanFreq} onChange={(e) => setScanFreq(e.target.value)}>
                     <option>Daily (Recommended)</option>
                     <option>Hourly</option>
                     <option>Weekly</option>
                     <option>Monthly</option>
                   </select>
                 </label>
-                <label className="flex flex-col gap-1.5 flex-1">
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Scanner pool
-                  </span>
-                  <select
-                    className="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[13px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                    value={scannerPool}
-                    onChange={(e) => setScannerPool(e.target.value)}
-                  >
-                    <option value="">Tenant cloud</option>
-                    <option value="pool-eu-west">EU West Production</option>
-                    <option value="pool-a">Standalone Pool A</option>
-                  </select>
-                </label>
-              </div>
 
-              {/* Capability toggles */}
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                      Privilege analysis
+                {/* Toggles */}
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Scan capabilities</div>
+                  {[
+                    { label: "Privilege analysis", desc: "Surface over-privileged accounts and orphaned permissions.", val: privAnalysis, set: setPrivAnalysis },
+                    { label: "Data-in-use monitoring", desc: "Track who is reading sensitive objects in real time.", val: dataInUse, set: setDataInUse },
+                    { label: "Shadow data analysis", desc: "Flag stale data sets not accessed within your retention window.", val: shadowAnalysis, set: setShadowAnalysis },
+                  ].map((cap, i) => (
+                    <div key={i} className={`flex items-center justify-between py-3 ${i < 2 ? "border-b border-slate-100 dark:border-slate-800" : ""}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{cap.label}</div>
+                        <div className="text-[12px] text-slate-500 dark:text-slate-400">{cap.desc}</div>
+                      </div>
+                      <button type="button" onClick={() => cap.set(!cap.val)} className="bg-transparent border-none cursor-pointer p-0">
+                        <ToggleSwitch on={cap.val} />
+                      </button>
                     </div>
-                    <div className="text-[12px] text-slate-500 dark:text-slate-400">
-                      Surface over-privileged accounts and orphaned permissions.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setPrivAnalysis(!privAnalysis)}
-                    className="bg-transparent border-none cursor-pointer p-0"
-                  >
-                    <ToggleSwitch on={privAnalysis} />
-                  </button>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                      Data-in-use monitoring
-                    </div>
-                    <div className="text-[12px] text-slate-500 dark:text-slate-400">
-                      Track who is reading sensitive objects in real time.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDataInUse(!dataInUse)}
-                    className="bg-transparent border-none cursor-pointer p-0"
-                  >
-                    <ToggleSwitch on={dataInUse} />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                      Shadow data analysis
-                    </div>
-                    <div className="text-[12px] text-slate-500 dark:text-slate-400">
-                      Flag stale data sets not accessed within your retention window.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShadowAnalysis(!shadowAnalysis)}
-                    className="bg-transparent border-none cursor-pointer p-0"
-                  >
-                    <ToggleSwitch on={shadowAnalysis} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Archive danger zone */}
-              <div className="flex gap-3 p-4 rounded-lg border border-red-200/50 dark:border-red-500/20 bg-red-50/30 dark:bg-red-900/10">
-                <AlertTriangle size={14} className="text-red-600 shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-                    Archive this connection
-                  </div>
-                  <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-1">
-                    Stops scans and removes the store from Scan Activity. The connection can be
-                    reactivated later from Data Store Connections &rarr; Archived.
-                  </div>
-                </div>
-                <button
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0 self-center"
-                  onClick={() => setConfirmArchive(true)}
-                >
-                  <Archive size={12} /> Archive
-                </button>
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 dark:border-slate-700 shrink-0">
-          {editing ? (
-            <>
-              <button
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-blue-500 hover:bg-blue-600 border-none cursor-pointer"
-                onClick={() => {
-                  onUpdate &&
-                    onUpdate({ scanType, scanFreq, scannerPool, privAnalysis, dataInUse, shadowAnalysis });
-                  setEditing(false);
-                }}
-              >
-                <Save size={13} /> Save changes
-              </button>
-            </>
-          ) : (
+        {/* Footer — only for editable tabs */}
+        {isEditable && (
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 dark:border-slate-700 shrink-0">
             <button
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-blue-500 hover:bg-blue-600 border-none cursor-pointer"
+              onClick={() => {
+                onUpdate && onUpdate({ scanType, scanFreq, scannerPool, privAnalysis, dataInUse, shadowAnalysis });
+              }}
             >
-              Close
+              <Save size={13} /> Save changes
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Archive confirmation dialog */}
+      {/* Archive confirmation */}
       {confirmArchive && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/40 dark:bg-black/60 flex items-center justify-center"
-          onClick={() => setConfirmArchive(false)}
-        >
-          <div
-            className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[60] bg-black/40 dark:bg-black/60 flex items-center justify-center" onClick={() => setConfirmArchive(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="flex items-center gap-3 text-[15px] font-semibold text-slate-900 dark:text-slate-100 m-0">
               <span className="inline-flex w-8 h-8 rounded-full bg-red-500/10 text-red-600 items-center justify-center shrink-0">
                 <AlertTriangle size={16} />
@@ -951,28 +893,12 @@ function StoreDetailsDrawer({ open, store, onClose, onArchive, onUpdate, onViewI
               Archive this connection?
             </h3>
             <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-3 leading-relaxed">
-              Scans will stop and findings will be removed from active dashboards. The connection can
-              be reactivated later from{" "}
-              <strong className="text-slate-700 dark:text-slate-300">
-                Data Store Connections &rarr; Archived
-              </strong>
-              .
+              Scans will stop and findings will be removed from active dashboards. Reactivate from{" "}
+              <strong className="text-slate-700 dark:text-slate-300">Data Store Connections &rarr; Archived</strong>.
             </p>
             <div className="flex justify-end gap-2 mt-5">
-              <button
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                onClick={() => setConfirmArchive(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-red-600 hover:bg-red-700 border-none cursor-pointer"
-                onClick={() => {
-                  onArchive && onArchive(store);
-                  setConfirmArchive(false);
-                  onClose();
-                }}
-              >
+              <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => setConfirmArchive(false)}>Cancel</button>
+              <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-white bg-red-600 hover:bg-red-700 border-none cursor-pointer" onClick={() => { onArchive && onArchive(store); setConfirmArchive(false); onClose(); }}>
                 <Archive size={12} /> Archive connection
               </button>
             </div>
@@ -1000,6 +926,7 @@ export function ScanActivityPage({
   const [tab, setTab] = useState("connections");
   const [query, setQuery] = useState("");
   const [opened, setOpened] = useState<string | null>(null);
+  const [openTab, setOpenTab] = useState<DrawerTab | undefined>(undefined);
   const [, setTickFlag] = useState(0);
 
   // Live tick -- every 1.5s nudges running rows
@@ -1064,7 +991,7 @@ export function ScanActivityPage({
       <div className="grid grid-cols-4 gap-3">
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-center">
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{rows.length}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Connected stores</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Data stores</div>
         </div>
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-center">
           <div className={`text-2xl font-bold ${runningCount > 0 ? "text-blue-500" : "text-slate-400"}`}>
@@ -1148,7 +1075,7 @@ export function ScanActivityPage({
       <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <div className="px-5 pt-3 pb-1.5">
           <h3 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-            {filtered.length} Connected Store{filtered.length === 1 ? "" : "s"}
+            {filtered.length} Data Store{filtered.length === 1 ? "" : "s"}
           </h3>
         </div>
 
@@ -1172,66 +1099,50 @@ export function ScanActivityPage({
           <>
             {/* Column headers */}
             <div
-              className="grid px-5 py-2.5 border-b border-slate-100 dark:border-slate-800"
-              style={{ gridTemplateColumns: "1fr 1fr 1.5fr 110px 120px 1.4fr 100px 70px" }}
+              className="grid items-center px-5 py-2.5 border-b border-slate-100 dark:border-slate-800"
+              style={{ gridTemplateColumns: "1.2fr 0.7fr 0.8fr 1.4fr 1fr 100px 80px 56px" }}
             >
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Service
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Account
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Endpoint
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Region
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Status
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Progress
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Last scan
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 text-right">
-                Actions
-              </span>
+              {["Data Store", "Service", "Account", "Endpoint", "Progress", "Status", "Last Scan", ""].map((h, i) => (
+                <span key={i} className={`text-[10px] font-semibold uppercase tracking-wider text-slate-400 ${i === 7 ? "text-right" : ""}`}>
+                  {h}
+                </span>
+              ))}
             </div>
 
             {/* Rows */}
             {filtered.map((s) => (
               <div
                 key={s.id}
-                className={`grid px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-b-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                className={`grid items-center px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-b-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
                   s.justConnected ? "bg-blue-500/[0.04] dark:bg-blue-500/[0.06]" : ""
                 }`}
-                style={{ gridTemplateColumns: "1fr 1fr 1.5fr 110px 120px 1.4fr 100px 70px" }}
-                onClick={() => setOpened(s.id)}
+                style={{ gridTemplateColumns: "1.2fr 0.7fr 0.8fr 1.4fr 1fr 100px 80px 56px" }}
+                onClick={() => { setOpenTab(undefined); setOpened(s.id); }}
               >
-                <span className="flex items-center gap-2 text-[12.5px] text-slate-900 dark:text-slate-100 font-medium">
-                  <ServiceGlyph name={s.service} size={16} /> {s.service}
+                {/* Data Store */}
+                <span className="flex items-center gap-2 text-[12.5px] text-slate-900 dark:text-slate-100 font-medium self-center truncate">
+                  <ServiceGlyph name={s.service} size={16} />
+                  <span className="truncate">{s.name || s.endpoint}</span>
                   {s.justConnected && (
-                    <span className="inline-flex px-1.5 py-0.5 text-[9.5px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded tracking-wider">
+                    <span className="inline-flex px-1.5 py-0.5 text-[9.5px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded tracking-wider shrink-0">
                       NEW
                     </span>
                   )}
                 </span>
+                {/* Service */}
+                <span className="text-[12px] text-slate-500 dark:text-slate-400 self-center">
+                  {s.service}
+                </span>
+                {/* Account */}
                 <span className="text-[12px] text-slate-800 dark:text-slate-200 truncate self-center">
                   {s.account}
                 </span>
-                <span className="text-[12px] text-slate-800 dark:text-slate-200 font-mono truncate self-center">
-                  <span className="text-blue-500 hover:text-blue-600">{s.endpoint}</span>
+                {/* Endpoint (truncated) */}
+                <span className="text-[11.5px] text-slate-500 dark:text-slate-400 font-mono truncate self-center" title={s.endpoint}>
+                  {s.endpoint}
                 </span>
-                <span className="text-[11.5px] text-slate-500 dark:text-slate-400 self-center">
-                  {s.region}
-                </span>
-                <span className="self-center">
-                  <StateChip state={s.scanState} />
-                </span>
-                <span className="flex flex-col min-w-0 gap-1 self-center">
+                {/* Progress */}
+                <span className="self-center min-w-0">
                   <MiniProgress
                     value={
                       typeof s.sampledFiles === "number" && s.sampledFiles
@@ -1246,14 +1157,16 @@ export function ScanActivityPage({
                           : "#3b82f6"
                     }
                   />
-                  <span className="tabular-nums text-[10.5px] text-slate-400 truncate">
-                    {fmtNum(s.filesScanned)} /{" "}
-                    {fmtNum(typeof s.sampledFiles === "number" ? s.sampledFiles : s.filesTotal)} files
-                  </span>
                 </span>
+                {/* Status */}
+                <span className="self-center">
+                  <StateChip state={s.scanState} />
+                </span>
+                {/* Last Scan */}
                 <span className="text-[11.5px] text-slate-500 dark:text-slate-400 self-center">
                   {s.lastScan || "—"}
                 </span>
+                {/* Actions */}
                 <span
                   className="flex justify-end items-center gap-1 self-center"
                   onClick={(e) => e.stopPropagation()}
@@ -1270,7 +1183,7 @@ export function ScanActivityPage({
                     className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent border-none text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 cursor-pointer"
                     title="Edit Data Store Connection"
                     aria-label="Edit Data Store Connection"
-                    onClick={() => setOpened(s.id)}
+                    onClick={() => { setOpenTab("connection"); setOpened(s.id); }}
                   >
                     <Edit size={13} />
                   </button>
@@ -1285,7 +1198,8 @@ export function ScanActivityPage({
       <StoreDetailsDrawer
         open={!!opened}
         store={openedStore}
-        onClose={() => setOpened(null)}
+        initialTab={openTab}
+        onClose={() => { setOpened(null); setOpenTab(undefined); }}
         onArchive={onArchive}
         onUpdate={() => {}}
         onViewInventory={onViewInventory}
@@ -1297,7 +1211,7 @@ export function ScanActivityPage({
           <span className="text-[12px] text-slate-400 mr-auto">
             {canMarkDone
               ? `${rows.length} store${rows.length === 1 ? "" : "s"} scanning · scan progress is healthy`
-              : "Connect a data store to see scan activity here"}
+              : "Connect a data store to see scan activity"}
           </span>
           <button
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-transparent border-none hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"

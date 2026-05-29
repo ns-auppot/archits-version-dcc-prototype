@@ -1,4 +1,5 @@
-import { useState, useRef, type ReactNode } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
 
 interface InfoTipProps {
@@ -12,6 +13,7 @@ export function InfoTip({ children, size = 12, color = "#94a3b8", label }: InfoT
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number; above: boolean } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function compute() {
     const el = triggerRef.current;
@@ -25,13 +27,15 @@ export function InfoTip({ children, size = 12, color = "#94a3b8", label }: InfoT
     setCoords({ top, left, above });
   }
 
-  function onEnter() {
+  const show = useCallback(() => {
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
     compute();
     setOpen(true);
-  }
-  function onLeave() {
-    setOpen(false);
-  }
+  }, []);
+
+  const hide = useCallback(() => {
+    hideTimer.current = setTimeout(() => setOpen(false), 120);
+  }, []);
 
   return (
     <span className="inline-flex items-center">
@@ -39,24 +43,26 @@ export function InfoTip({ children, size = 12, color = "#94a3b8", label }: InfoT
         ref={triggerRef}
         type="button"
         aria-label={label || "More info"}
-        onMouseEnter={onEnter}
-        onMouseLeave={onLeave}
-        onFocus={onEnter}
-        onBlur={onLeave}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          open ? onLeave() : onEnter();
+          open ? setOpen(false) : show();
         }}
         className="inline-flex items-center justify-center ml-1 rounded-full bg-transparent border-none cursor-help"
         style={{ width: size + 4, height: size + 4, padding: 0, color }}
       >
         <Info size={size} />
       </button>
-      {open && coords && (
+      {open && coords && createPortal(
         <div
-          className="fixed z-[350] rounded-lg border border-slate-200 bg-white p-3 text-[12px] leading-relaxed text-slate-600 shadow-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+          className="fixed z-[350] rounded-lg border border-slate-200 bg-white p-3 text-[12px] leading-relaxed text-slate-600 shadow-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 normal-case font-normal tracking-normal"
           style={{ top: coords.top, left: coords.left, width: 280 }}
+          onMouseEnter={show}
+          onMouseLeave={hide}
         >
           {children}
           <span
@@ -66,7 +72,8 @@ export function InfoTip({ children, size = 12, color = "#94a3b8", label }: InfoT
                 : "top-[-6px] left-1/2 -translate-x-1/2 border-b-0 border-r-0"
             }`}
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );
