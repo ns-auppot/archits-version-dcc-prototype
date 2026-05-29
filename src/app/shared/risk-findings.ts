@@ -35,6 +35,8 @@ export interface RecommendedAction {
   remediationAction?: 'quarantine' | 'delete' | 'restrict-access' | 'apply-dlp' | 'revoke-public' | 'revoke-external' | 'revoke-company' | 'legal-hold' | 'apply-sensitivity-label' | 'notify-owner' | 'change-ownership' | 'request-justification';
 }
 
+export type ExposureType = "Public" | "External" | "All Internal Users" | "EEEU";
+
 export interface MockFinding {
   id: string;
   ruleId: string;
@@ -52,6 +54,7 @@ export interface MockFinding {
   action: RecommendedAction[];
   // Why this is risky
   rationale: string;
+  exposureType?: ExposureType;
 }
 
 // ── Explicit findings for each rule ─────────────────────────────────────────
@@ -326,7 +329,7 @@ const FINDINGS: MockFinding[] = [
   //  r-oe-02  Sensitive Data Exposed via Public Links or Global Access  (NEW batch — FND-2025-1006..1010)
   // ══════════════════════════════════════════════════════════════════════════
   {
-    id: "FND-2025-1006", ruleId: "r-oe-02", severity: "Critical", status: "Open",
+    id: "FND-2025-1006", ruleId: "r-oe-02", severity: "Critical", status: "Open", exposureType: "Public",
     detectedAt: "4 hours ago", lastSeenAt: "4 hours ago",
     topology: {
       nodes: [
@@ -350,7 +353,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Apply S3 bucket policy denying s3:GetObject for principal *", remediationAction: "restrict-access" },
     ] },
   {
-    id: "FND-2025-1007", ruleId: "r-oe-02", severity: "High", status: "Open",
+    id: "FND-2025-1007", ruleId: "r-oe-02", severity: "High", status: "Open", exposureType: "Public",
     detectedAt: "2 days ago", lastSeenAt: "2 days ago",
     topology: {
       nodes: [
@@ -374,7 +377,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Apply Sensitivity Label 'Highly Confidential – Finance Only'", remediationAction: "apply-dlp" },
     ] },
   {
-    id: "FND-2025-1008", ruleId: "r-oe-02", severity: "High", status: "Rescan",
+    id: "FND-2025-1008", ruleId: "r-oe-02", severity: "High", status: "Rescan", exposureType: "Public",
     detectedAt: "5 days ago", lastSeenAt: "3 days ago",
     topology: {
       nodes: [
@@ -397,7 +400,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Audit all Azure storage accounts for inadvertent static website enablement", remediationAction: "restrict-access" },
     ] },
   {
-    id: "FND-2025-1009", ruleId: "r-oe-02", severity: "Critical", status: "Open",
+    id: "FND-2025-1009", ruleId: "r-oe-02", severity: "Critical", status: "Open", exposureType: "Public",
     detectedAt: "6 hours ago", lastSeenAt: "6 hours ago",
     topology: {
       nodes: [
@@ -420,7 +423,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Prioritize remediation of critical vulnerabilities disclosed in the report" },
     ] },
   {
-    id: "FND-2025-1010", ruleId: "r-oe-02", severity: "Medium", status: "Open",
+    id: "FND-2025-1010", ruleId: "r-oe-02", severity: "Medium", status: "Open", exposureType: "All Internal Users",
     detectedAt: "3 days ago", lastSeenAt: "3 days ago",
     topology: {
       nodes: [
@@ -446,7 +449,7 @@ const FINDINGS: MockFinding[] = [
   //  r-oe-02  Sensitive Data Exposed via Public Links  (CASB API, 9)
   // ══════════════════════════════════════════════════════════════════════════
   {
-    id: "FND-2024-3501", ruleId: "r-oe-02", severity: "Critical", status: "Open",
+    id: "FND-2024-3501", ruleId: "r-oe-02", severity: "Critical", status: "Open", exposureType: "Public",
     detectedAt: "6 hours ago", lastSeenAt: "6 hours ago",
     topology: {
       nodes: [
@@ -471,7 +474,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Audit all 'Anyone with link' sharing in HR Confidential drive — found 3 additional files" },
     ] },
   {
-    id: "FND-2024-3502", ruleId: "r-oe-02", severity: "High", status: "Open",
+    id: "FND-2024-3502", ruleId: "r-oe-02", severity: "High", status: "Open", exposureType: "External",
     detectedAt: "1 day ago", lastSeenAt: "1 day ago",
     topology: {
       nodes: [
@@ -496,7 +499,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Enable SharePoint external sharing policies requiring IT approval for public links" },
     ] },
   {
-    id: "FND-2024-3503", ruleId: "r-oe-02", severity: "High", status: "Rescan",
+    id: "FND-2024-3503", ruleId: "r-oe-02", severity: "High", status: "Rescan", exposureType: "External",
     detectedAt: "3 days ago", lastSeenAt: "3 days ago",
     topology: {
       nodes: [
@@ -521,7 +524,7 @@ const FINDINGS: MockFinding[] = [
       { text: "File SAR (Suspicious Activity Report) with appropriate regulatory body" },
     ] },
   {
-    id: "FND-2024-3504", ruleId: "r-oe-02", severity: "Medium", status: "Open",
+    id: "FND-2024-3504", ruleId: "r-oe-02", severity: "Medium", status: "Open", exposureType: "All Internal Users",
     detectedAt: "5 days ago", lastSeenAt: "5 days ago",
     topology: {
       nodes: [
@@ -544,7 +547,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Redact source code snippets from the public version of strategy slides" },
     ] },
   {
-    id: "FND-2024-3505", ruleId: "r-oe-02", severity: "Critical", status: "Open",
+    id: "FND-2024-3505", ruleId: "r-oe-02", severity: "Critical", status: "Open", exposureType: "EEEU",
     detectedAt: "12 hours ago", lastSeenAt: "12 hours ago",
     topology: {
       nodes: [
@@ -570,7 +573,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Enable SharePoint policy: require manager approval for any public link creation on HR sites" },
     ] },
   {
-    id: "FND-2024-3506", ruleId: "r-oe-02", severity: "High", status: "Open",
+    id: "FND-2024-3506", ruleId: "r-oe-02", severity: "High", status: "Open", exposureType: "Public",
     detectedAt: "2 days ago", lastSeenAt: "2 days ago",
     topology: {
       nodes: [
@@ -596,7 +599,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Change Ownership to Security team lead for audit" },
     ] },
   {
-    id: "FND-2024-3507", ruleId: "r-oe-02", severity: "Medium", status: "Rescan",
+    id: "FND-2024-3507", ruleId: "r-oe-02", severity: "Medium", status: "Rescan", exposureType: "External",
     detectedAt: "1 week ago", lastSeenAt: "4 days ago",
     topology: {
       nodes: [
@@ -619,7 +622,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Apply DLP Policy to prevent future customer PII exposure", remediationAction: 'apply-dlp' },
     ] },
   {
-    id: "FND-2024-3508", ruleId: "r-oe-02", severity: "High", status: "Open",
+    id: "FND-2024-3508", ruleId: "r-oe-02", severity: "High", status: "Open", exposureType: "Public",
     detectedAt: "4 days ago", lastSeenAt: "2 days ago",
     topology: {
       nodes: [
@@ -642,7 +645,7 @@ const FINDINGS: MockFinding[] = [
       { text: "Classify all infrastructure audit documents as 'Confidential/Restricted' — no external sharing" },
     ] },
   {
-    id: "FND-2024-3509", ruleId: "r-oe-02", severity: "Medium", status: "Open",
+    id: "FND-2024-3509", ruleId: "r-oe-02", severity: "Medium", status: "Open", exposureType: "EEEU",
     detectedAt: "6 days ago", lastSeenAt: "6 days ago",
     topology: {
       nodes: [

@@ -29,6 +29,10 @@ import { RISK_TYPES } from "../../shared/risk-rules";
 import { SeverityBadge } from "../ui/SeverityBadge";
 import { RiskTypeIcon } from "../ui/RiskTypeIcon";
 import { DataStoreIcon } from "../inventory/data-store-icons";
+import { SidePanel } from "../inventory/SidePanel";
+import { SensitiveFileDetailPane, SensitiveFileHeaderExtra, FileActionsMenu } from "../inventory/ForensicDetailPane";
+import { SaaSRowPanelContent } from "../inventory/UnstructuredDataStoreTableSaaS";
+import type { SaaSUnstructuredDataRow } from "../inventory/UnstructuredDataStoreTableSaaS";
 import { getFindingsForRuleFiltered, SEVERITY_STYLES, STATUS_STYLES, getDataStoreTier } from "../../shared/risk-findings";
 import type { MockFinding, Severity, FindingFilter, FindingStatus } from "../../shared/risk-findings";
 import { RescanModal } from "./RescanModal";
@@ -58,7 +62,8 @@ export type FilterChipType =
   | "identityType"
   | "dataType"
   | "dataTypeCategory"
-  | "status";
+  | "status"
+  | "exposure";
 
 export interface FilterChip {
   id: string;
@@ -348,6 +353,8 @@ function applyChipFilters(findings: MockFinding[], chips: FilterChip[]): MockFin
         }
         case "status":
           return getEffectiveStatus(finding.id, finding.status) === chip.value;
+        case "exposure":
+          return finding.exposureType === chip.value;
         default:
           return true;
       }
@@ -1066,6 +1073,36 @@ function ChartsPanel({
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [allFindings]);
 
+  const EXPOSURE_LABELS: Record<string, string> = {
+    "Public": "Public",
+    "External": "External",
+    "All Internal Users": "All Internal Users",
+    "EEEU": "All Internal Users via EEEU",
+  };
+  const EXPOSURE_COLORS: Record<string, string> = {
+    "Public": "#ef4444",
+    "External": "#f97316",
+    "All Internal Users": "#eab308",
+    "EEEU": "#3b82f6",
+  };
+
+  const exposureItems = useMemo((): BarItem[] => {
+    const map = new Map<string, BarItem>();
+    allFindings.forEach(f => {
+      if (!f.exposureType) return;
+      const existing = map.get(f.exposureType);
+      if (existing) { existing.count++; }
+      else map.set(f.exposureType, {
+        key: f.exposureType,
+        label: EXPOSURE_LABELS[f.exposureType] ?? f.exposureType,
+        count: 1,
+        color: EXPOSURE_COLORS[f.exposureType],
+      });
+    });
+    const order = ["Public", "External", "All Internal Users", "EEEU"];
+    return Array.from(map.values()).sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  }, [allFindings]);
+
   // Compute all unique data types from all findings
   const allDataTypes = useMemo((): string[] => {
     const typesSet = new Set<string>();
@@ -1081,12 +1118,19 @@ function ChartsPanel({
   const activeDestKeys = chips.filter(c => c.type === "destination").map(c => c.value);
   const activeIdentKeys = chips.filter(c => c.type === "identity").map(c => c.value);
   const activeDataTypeKeys = chips.filter(c => c.type === "dataType").map(c => c.value);
+  const activeExposureKeys = chips.filter(c => c.type === "exposure").map(c => c.value);
 
   // State for showing more data types
   const [showAllDataTypes, setShowAllDataTypes] = useState(false);
   const MAX_DATA_TYPES = 12;
   const visibleDataTypes = showAllDataTypes ? allDataTypes : allDataTypes.slice(0, MAX_DATA_TYPES);
   const hiddenCount = allDataTypes.length - MAX_DATA_TYPES;
+
+  const handleExposureClick = (key: string, label: string) => {
+    if (!chips.find(c => c.type === "exposure" && c.value === key)) {
+      onAddChip({ type: "exposure", value: key, label: `Exposure: ${label}` });
+    }
+  };
 
   const handleDataStoreClick = (key: string, label: string) => {
     if (!chips.find(c => c.type === "dataStore" && c.value === key)) {
@@ -1174,6 +1218,17 @@ function ChartsPanel({
             )}
           </div>
         </div>
+      )}
+
+      {/* Exposure bar chart */}
+      {exposureItems.length > 0 && (
+        <HorizontalBarChart
+          title="Top Exposure"
+          items={exposureItems}
+          activeKeys={activeExposureKeys}
+          onItemClick={handleExposureClick}
+          barColor="#ef4444"
+        />
       )}
 
       {/* Data stores bar chart */}
@@ -1283,7 +1338,21 @@ function FilterChipsBar({
     setExpandedSection(null);
   };
 
+  const exposureOptions = useMemo(() => {
+    const s = new Set<string>();
+    allFindings.forEach(f => { if (f.exposureType) s.add(f.exposureType); });
+    return Array.from(s);
+  }, [allFindings]);
+
+  const exposureLabelMap: Record<string, string> = {
+    "Public": "Public",
+    "External": "External",
+    "All Internal Users": "All Internal Users",
+    "EEEU": "All Internal Users via EEEU",
+  };
+
   const sections = [
+    ...(exposureOptions.length > 0 ? [{ key: "exposure", label: "Exposure", options: exposureOptions.map(s => ({ value: s, label: `Exposure: ${exposureLabelMap[s] ?? s}` })), type: "exposure" as FilterChipType }] : []),
     { key: "dataStore", label: "Data Store", options: dataStoreOptions.map(s => ({ value: s, label: `Store: ${s}` })), type: "dataStore" as FilterChipType },
     { key: "destination", label: "Data Destination", options: destinationOptions.map(s => ({ value: s, label: `Dest: ${s}` })), type: "destination" as FilterChipType },
     { key: "identity", label: "Identity", options: identityOptions.map(s => ({ value: s, label: `Identity: ${s}` })), type: "identity" as FilterChipType },
@@ -1691,6 +1760,30 @@ function FindingDetailView({
   // Rescan single finding modal state
   const [showRescanSingle, setShowRescanSingle] = useState(false);
 
+  // Detail panel state
+  const [showFilePanel, setShowFilePanel] = useState(false);
+  const [showStorePanel, setShowStorePanel] = useState(false);
+
+  // Extract topology nodes
+  const fileNode = finding.topology.nodes.find(n => n.type === "file");
+  const storeNode = finding.topology.nodes.find(n => n.type === "store");
+  const identityNode = finding.topology.nodes.find(n => n.type === "identity");
+  const configNode = finding.topology.nodes.find(n => n.type === "config");
+
+  // Build mock SaaS data store row for the inventory panel
+  const mockStoreRow = useMemo((): SaaSUnstructuredDataRow => ({
+    id: storeNode?.label ?? finding.id,
+    name: storeNode?.label ?? "Unknown Store",
+    nameSubtitle: storeNode?.sublabel,
+    appInstance: storeNode?.sublabel?.split("·").pop()?.trim() ?? "",
+    sensitiveFiles: 150,
+    sampledFiles: 311,
+    totalFiles: 381,
+    dataTypes,
+    uploadSparkData: [12, 8, 15, 10, 6, 14, 9],
+    downloadSparkData: [5, 3, 7, 4, 2, 6, 3],
+  }), [finding.id]);
+
   return (
     <div
       className="fixed top-0 bottom-0 right-0 flex flex-col bg-background border-l shadow-xl"
@@ -1718,25 +1811,14 @@ function FindingDetailView({
 
       {/* Scrollable detail body */}
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Topology placeholder — links to full topology dictionary */}
-        <div className="pb-4">
-          <div className="rounded-lg border-2 border-dashed border-pink-300 bg-pink-50 p-6 text-center">
-            <p className="text-pink-600 font-medium mb-2" style={{ fontSize: "13px" }}>
-              Topology design placeholder
-            </p>
-            <p className="text-pink-500 mb-3" style={{ fontSize: "11px" }}>
-              The correct topology for each risk policy is maintained in the topology dictionary.
-            </p>
-            <a
-              href="/risk/topologies"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md bg-pink-500 text-white px-4 py-2 font-medium hover:bg-pink-600 transition-colors"
-              style={{ fontSize: "12px" }}
-            >
-              View all policy topologies
-            </a>
-          </div>
+        {/* Finding title */}
+        <div className="pb-2">
+          <h3 style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-foreground)" }}>
+            {fileNode?.label ?? storeNode?.label ?? "Finding Details"}
+          </h3>
+          <p className="text-muted-foreground" style={{ fontSize: "11px", marginTop: 2 }}>
+            {identityNode?.label ?? storeNode?.sublabel ?? ""}
+          </p>
         </div>
 
         {/* Recommended Actions — SaaS managed only, top action only */}
@@ -1800,9 +1882,40 @@ function FindingDetailView({
           </div>
         )}
 
+        {/* ── Details ── */}
+        <div>
+          <p className="text-muted-foreground mb-3" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.07em" }}>
+            Details
+          </p>
 
+          {/* View File Details button */}
+          {fileNode && (
+            <button
+              onClick={() => setShowFilePanel(true)}
+              className="flex items-center gap-2.5 w-full py-2.5 px-4 rounded-lg transition-colors hover:bg-muted/60"
+              style={{ border: "1px solid var(--color-border)", background: "var(--color-background)", marginBottom: 8 }}
+            >
+              <FileText size={15} style={{ color: "var(--color-foreground)" }} />
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-foreground)" }}>
+                View File Details
+              </span>
+            </button>
+          )}
 
-
+          {/* View Data Store Details button */}
+          {storeNode && (
+            <button
+              onClick={() => setShowStorePanel(true)}
+              className="flex items-center gap-2.5 w-full py-2.5 px-4 rounded-lg transition-colors hover:bg-muted/60"
+              style={{ border: "1px solid var(--color-border)", background: "var(--color-background)" }}
+            >
+              <Database size={15} style={{ color: "var(--color-foreground)" }} />
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-foreground)" }}>
+                View Data Store Details
+              </span>
+            </button>
+          )}
+        </div>
 
       </div>
 
@@ -1957,10 +2070,9 @@ function FindingDetailView({
       {/* ── Entity Panel Stack ──────────────────────────────────────────────────── */}
       {entityPanelStack.map((entity, idx) => {
         const isTop = idx === entityPanelStack.length - 1;
-        // Only show a thin slice of panels underneath the top one
         const leftOffset = idx === entityPanelStack.length - 1 ? 0 : `calc(${idx} * 8px)`;
         const pointerEvents = isTop ? "auto" : "none";
-        
+
         return (
           <div
             key={idx}
@@ -1980,6 +2092,60 @@ function FindingDetailView({
           </div>
         );
       })}
+
+      {/* ── File Details Side Panel (inventory) ── */}
+      {showFilePanel && fileNode && (
+        <SidePanel
+          open
+          onClose={() => setShowFilePanel(false)}
+          onBack={() => setShowFilePanel(false)}
+          title={fileNode.label}
+          subtitle={`/${storeNode?.label ?? ""}/${fileNode.label}`}
+          width="min(840px, 90vw)"
+          zIndex={70}
+          hideBackdrop
+          stacked
+          panelType="file"
+          headerActions={<FileActionsMenu />}
+          headerExtra={
+            <SensitiveFileHeaderExtra
+              name={fileNode.label}
+              store={storeNode?.label ?? ""}
+              storeSource={storeNode?.sublabel?.split("·")[0]?.trim() ?? ""}
+              size={`${((fileNode.label.length * 17 + 42) % 900 + 100)} KB`}
+            />
+          }
+        >
+          <SensitiveFileDetailPane
+            name={fileNode.label}
+            path={`/${storeNode?.label ?? ""}/${fileNode.label}`}
+            store={storeNode?.label ?? ""}
+            storeSource={storeNode?.sublabel?.split("·")[0]?.trim() ?? ""}
+            size={`${((fileNode.label.length * 17 + 42) % 900 + 100)} KB`}
+            lastModified={finding.detectedAt}
+            dataTypes={dataTypes}
+            saasMode
+          />
+        </SidePanel>
+      )}
+
+      {/* ── Data Store Details Side Panel (inventory) ── */}
+      {showStorePanel && storeNode && (
+        <SidePanel
+          open
+          onClose={() => setShowStorePanel(false)}
+          onBack={() => setShowStorePanel(false)}
+          title={storeNode.label}
+          subtitle={storeNode.sublabel}
+          titleIcon={<Database size={20} className="text-muted-foreground" />}
+          width="min(960px, 95vw)"
+          zIndex={70}
+          hideBackdrop
+          stacked
+        >
+          <SaaSRowPanelContent row={mockStoreRow} />
+        </SidePanel>
+      )}
     </div>
   );
 }
