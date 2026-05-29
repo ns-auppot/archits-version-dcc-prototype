@@ -58,6 +58,7 @@ function CollapseToggle() {
 export function LeftNav() {
   const location = useLocation();
   const nav = useNavigate();
+  const { open, setOpen } = useSidebar();
   const [navMode, setNavMode] = useState<"datasec" | "platform">("datasec");
   const [configOpen, setConfigOpen] = useState(() => location.pathname.startsWith("/setup"));
   const [isDark, setIsDark] = useState(() => {
@@ -247,9 +248,9 @@ export function LeftNav() {
                 <SidebarMenuButton
                   tooltip="Configuration"
                   onClick={() => {
-                    const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-                    const isCollapsed = sidebar?.getAttribute('data-collapsible') === 'icon' && sidebar?.getAttribute('data-state') === 'collapsed';
-                    if (isCollapsed) {
+                    if (!open) {
+                      setOpen(true);
+                      setConfigOpen(true);
                       nav('/setup');
                     } else {
                       setConfigOpen(v => !v);
