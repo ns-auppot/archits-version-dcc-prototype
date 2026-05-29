@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Netskope Data Security</title>
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+    <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+    <script>
+      // Handle SPA redirect from 404.html
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var path = params.get('p');
+        if (path) {
+          window.history.replaceState(null, '', path);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script
+      src="./ux-companion.js"
+      data-repo="ns-auppot/archits-version-dcc-prototype"
+      defer
+    ></script>
+  </body>
+</html>

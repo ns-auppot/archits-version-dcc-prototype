@@ -1,0 +1,270 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --background: #f8fafc;
+  --foreground: #1e293b;
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #1e293b;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f1f5f9;
+  --switch-background: #cbd5e1;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+  --radius: 0.5rem;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e8f0;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: #3b82f6;
+
+  --nav-bg: #ffffff;
+  --nav-active: #e2e8f0;
+  --surface-raised: #f1f5f9;
+  --text-bright: #0f172a;
+  --text-dim: #94a3b8;
+  --sanctioned: #16a34a;
+  --unsanctioned: #ea580c;
+  --warning: #ca8a04;
+
+  /* ── Category text colors ────────────────────────────────────────────────── */
+  --cat-text-pii:  #235B9F;
+  --cat-text-spii: #dc2626;
+  --cat-text-psi:  #ea580c;
+  --cat-text-pci:  #d97706;
+  --cat-text-pfi:  #059669;
+  --cat-text-phi:  #0891b2;
+  --cat-text-pai:  #9333ea;
+  --cat-text-bii:  #db2777;
+
+  /* ── Widget Typography Scale ─────────────────────────────────────────────── */
+  /* Page-level header */
+  --widget-page-title:    18px;   /* "Google Drive" page heading              */
+  --widget-page-subtitle: 12px;   /* Page-level description                   */
+  /* Widget card header */
+  --widget-title:         14px;   /* Widget card title                        */
+  --widget-subtitle:      12px;   /* Widget card subtitle / description       */
+  /* KPI numbers */
+  --widget-kpi-xl:        28px;   /* Hero metrics (posture check counts)      */
+  --widget-kpi-lg:        24px;   /* Stat card primary values                 */
+  --widget-kpi-md:        20px;   /* Popover prominent numbers                */
+  --widget-kpi-label:     10px;   /* Text labels beside KPI numbers           */
+  /* Body text */
+  --widget-body:          12px;   /* List items, rule names, general body     */
+  --widget-body-sm:       10px;   /* Compact body: chip values, tooltip vals  */
+  /* Supporting text */
+  --widget-label:         10px;   /* Chip labels, legend items, tooltip series*/
+  --widget-meta:           10px;   /* Axis ticks, eyebrow labels, badges       */
+}
+
+.dark {
+  --background: #0b1120;
+  --foreground: #e2e8f0;
+  --card: #111a2e;
+  --card-foreground: #e2e8f0;
+  --popover: #111a2e;
+  --popover-foreground: #e2e8f0;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #e2e8f0;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #e2e8f0;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: transparent;
+  --input-background: #162033;
+  --switch-background: #334155;
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+  --sidebar: #0f1729;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #3b82f6;
+
+  --nav-bg: #0f1729;
+  --nav-active: #1e293b;
+  --surface-raised: #162033;
+  --text-bright: #f1f5f9;
+  --text-dim: #64748b;
+  --sanctioned: #22c55e;
+  --unsanctioned: #f97316;
+  --warning: #eab308;
+
+  /* ── Category text colors (dark — DO NOT CHANGE) ────────────────────────── */
+  --cat-text-pii:  #60a5fa;
+  --cat-text-spii: #f87171;
+  --cat-text-psi:  #fb923c;
+  --cat-text-pci:  #fbbf24;
+  --cat-text-pfi:  #34d399;
+  --cat-text-phi:  #22d3ee;
+  --cat-text-pai:  #c084fc;
+  --cat-text-bii:  #f472b6;
+}
+
+@theme inline {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-nav-bg: var(--nav-bg);
+  --color-nav-active: var(--nav-active);
+  --color-surface-raised: var(--surface-raised);
+  --color-text-bright: var(--text-bright);
+  --color-text-dim: var(--text-dim);
+  --color-sanctioned: var(--sanctioned);
+  --color-unsanctioned: var(--unsanctioned);
+  --color-warning: var(--warning);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Force Inter for every element, including font-mono overrides */
+  html, body, * {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Explicit override so Tailwind's font-mono utility never escapes to system monospace */
+  .font-mono {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+    font-family: var(--font-family);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
